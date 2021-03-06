@@ -1,0 +1,19 @@
+CUDA_VISIBLE_DEVICES=5 python train.py multi-news-2000-300-train -a hierarchical_transformer_medium \
+                             --optimizer adam \
+                             --lr 0.0001 -s src -t tgt \
+                             --dropout 0.1 \
+                             --max-tokens 2600   \
+                             --share-decoder-input-output-embed   \
+                             --task multi_loss_sent_word \
+                             --adam-betas '(0.9, 0.98)' \
+                             --save-dir checkpoints/hierarchical_transformer-2000-300-maxtoken-2600-freq-40-cu05 \
+                             --share-all-embeddings  \
+                             --lr-scheduler reduce_lr_on_plateau \
+                             --lr-shrink 0.5 \
+                             --criterion multi_loss_doc_sent_word \
+                             --ddp-backend no_c10d \
+                             --num-workers 2 \
+                             --update-freq 40 \
+                             --encoder-normalize-before \
+                             --decoder-normalize-before \
+                             --sent-weight 2
