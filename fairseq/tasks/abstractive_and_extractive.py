@@ -136,7 +136,7 @@ class HierarchicalSummarizationMultiLossTask(FairseqTask):
         doc_datasets = []
 
         for k in itertools.count():
-            split_k = split + (str(k) if k > 0 else '')
+            split_k = split + (str(k) if k > 0 else '')  # split = train
 
             # infer langcode
             if 'test' not in split_k:
@@ -151,10 +151,15 @@ class HierarchicalSummarizationMultiLossTask(FairseqTask):
                     else:
                         raise FileNotFoundError('Dataset not found: {} ({})'.format(split, data_path))
             else:
+                # src, tgt, sent, doc
                 src, tgt, sent, doc = self.args.source_lang, self.args.target_lang, self.args.sent_lang, self.args.doc_lang
+                # multi-news-2000-300-train/train1.src-tgt.src
                 if split_exists(split_k, src, tgt, src, data_path, 'raw'):
+                    # multi-news-2000-300-train/train1.src-tgt
                     prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, src, tgt))
+                # multi-news-2000-300-train/train1.tgt-src.src
                 elif split_exists(split_k, tgt, src, src, data_path, 'raw'):
+                    # multi-news-2000-300-train/train1.tgt-src
                     prefix = os.path.join(data_path, '{}.{}-{}.'.format(split_k, tgt, src))
                 else:
                     if k > 0:
@@ -176,7 +181,7 @@ class HierarchicalSummarizationMultiLossTask(FairseqTask):
                 sent_datasets.append(indexed_dataset.make_dataset(prefix + sent, impl='raw',
                                                                   fix_lua_indexing=True, dictionary=self.tgt_dict))
                 doc_datasets.append(indexed_dataset.make_dataset(prefix + doc, impl='raw',
-                                                                  fix_lua_indexing=True, dictionary=self.tgt_dict))
+                                                                 fix_lua_indexing=True, dictionary=self.tgt_dict))
 
             print('| {} {} {} examples'.format(data_path, split_k, len(src_datasets[-1])))
 
@@ -186,10 +191,11 @@ class HierarchicalSummarizationMultiLossTask(FairseqTask):
         assert len(src_datasets) == len(tgt_datasets) == len(sent_datasets) == len(doc_datasets)
 
         if len(src_datasets) == 1:
-            src_dataset, tgt_dataset, sent_dataset, doc_dataset = src_datasets[0], tgt_datasets[0], sent_datasets[0], doc_datasets[0]
+            src_dataset, tgt_dataset, sent_dataset, doc_dataset = src_datasets[0], tgt_datasets[0], sent_datasets[0], \
+                                                                  doc_datasets[0]
         else:
-            sample_ratios = [1] * len(src_datasets)
-            sample_ratios[0] = self.args.upsample_primary
+            sample_ratios = [1] * len(src_datasets)  # => [1,1,1]
+            sample_ratios[0] = self.args.upsample_primary  # 1
             src_dataset = ConcatDataset(src_datasets, sample_ratios)
             tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
             sent_dataset = ConcatDataset(sent_datasets, sample_ratios)
@@ -206,6 +212,7 @@ class HierarchicalSummarizationMultiLossTask(FairseqTask):
                 max_target_positions=self.args.max_target_positions,
             )
         else:
+            # 'train'
             self.datasets[split] = LanguagePairMultiNewsDataset(
                 src_dataset, src_dataset.sizes, self.src_dict,
                 tgt_dataset, tgt_dataset.sizes, self.tgt_dict,

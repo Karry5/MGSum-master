@@ -10,11 +10,11 @@ import os
 
 from .fairseq_lr_scheduler import FairseqLRScheduler
 
-
 LR_SCHEDULER_REGISTRY = {}
 
 
 def build_lr_scheduler(args, optimizer):
+    # reduce_lr_on_plateau
     return LR_SCHEDULER_REGISTRY[args.lr_scheduler](args, optimizer)
 
 

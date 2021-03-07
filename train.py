@@ -14,7 +14,7 @@ import math
 import os
 import random
 import shutil
-
+import tqdm
 import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, progress_bar, tasks, utils
@@ -40,24 +40,25 @@ def main(args, init_distributed=False):
     print(args)
 
     # Setup task, e.g., translation, language modeling, etc.
-    task = tasks.setup_task(args)
+    task = tasks.setup_task(args)  # HierarchicalSummarizationMultiLossTask
 
     # Load dataset splits
     task.load_dataset(args.train_subset, combine=True, epoch=0)
-    for valid_sub_split in args.valid_subset.split(','):
+    for valid_sub_split in args.valid_subset.split(','):  # valid_subset=valid
         task.load_dataset(valid_sub_split, combine=True, epoch=0)
 
     # Build model and criterion
     model = task.build_model(args)
     criterion = task.build_criterion(args)
     print(model)
+    print(model.__class__.__name__)
     print('| model {}, criterion {}'.format(args.arch, criterion.__class__.__name__))
     print('| num. model params: {} (num. trained: {})'.format(
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
-    # Build trainer
+    # Build trainer 类型： fairseq.trainer.Trainer
     trainer = Trainer(args, task, model, criterion)
     print('| training on {} GPUs'.format(args.distributed_world_size))
     print('| max tokens per GPU = {} and max sentences per GPU = {}'.format(
@@ -87,13 +88,14 @@ def main(args, init_distributed=False):
     load_checkpoint(args, trainer, epoch_itr, max_positions, task)
 
     # Train until the learning rate gets too small
-    max_epoch = args.max_epoch or math.inf
+    max_epoch = args.max_epoch or math.inf  # max_epoch和max_update 无穷大
     max_update = args.max_update or math.inf
     lr = trainer.get_lr()
     train_meter = StopwatchMeter()
     train_meter.start()
     valid_losses = [None]
-    valid_subsets = args.valid_subset.split(',')
+    valid_subsets = args.valid_subset.split(',')  # ['valid]
+    # args.min_lr=-1 ， 终止条件是 lr 小于-1
     while lr > args.min_lr and epoch_itr.epoch < max_epoch and trainer.get_num_updates() < max_update:
         # train for one epoch
         train(args, trainer, task, epoch_itr)
@@ -107,7 +109,7 @@ def main(args, init_distributed=False):
         lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
 
         # save checkpoint
-        if epoch_itr.epoch % args.save_interval == 0:
+        if epoch_itr.epoch % args.save_interval == 0:  # save_interval=1
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
 
         epoch_itr = reload_train(args, epoch_itr, max_positions, task)
@@ -178,6 +180,7 @@ def train(args, trainer, task, epoch_itr):
             trainer.get_meter('wps').reset()
 
         num_updates = trainer.get_num_updates()
+        # args.save_interval_updates=0
         if args.save_interval_updates > 0 and num_updates % args.save_interval_updates == 0 and num_updates > 0:
             valid_losses = validate(args, trainer, task, epoch_itr, valid_subsets)
             save_checkpoint(args, trainer, epoch_itr, valid_losses[0])
@@ -313,16 +316,16 @@ def save_checkpoint(args, trainer, epoch_itr, val_loss):
 
     checkpoint_conds = collections.OrderedDict()
     checkpoint_conds['checkpoint{}.pt'.format(epoch)] = (
-        end_of_epoch and not args.no_epoch_checkpoints and
-        epoch % args.save_interval == 0
+            end_of_epoch and not args.no_epoch_checkpoints and
+            epoch % args.save_interval == 0
     )
     checkpoint_conds['checkpoint_{}_{}.pt'.format(epoch, updates)] = (
-        not end_of_epoch and args.save_interval_updates > 0 and
-        updates % args.save_interval_updates == 0
+            not end_of_epoch and args.save_interval_updates > 0 and
+            updates % args.save_interval_updates == 0
     )
     checkpoint_conds['checkpoint_best.pt'] = (
-        val_loss is not None and
-        (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
+            val_loss is not None and
+            (not hasattr(save_checkpoint, 'best') or val_loss < save_checkpoint.best)
     )
     checkpoint_conds['checkpoint_last.pt'] = True  # keep this last so that it's a symlink
 
@@ -410,6 +413,7 @@ def distributed_main(i, args, start_rank=0):
 
 
 def cli_main():
+    # 设置训练参数
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser)
 
@@ -438,7 +442,7 @@ def cli_main():
             print('| NOTE: you may get better performance with: --ddp-backend=no_c10d')
         torch.multiprocessing.spawn(
             fn=distributed_main,
-            args=(args, ),
+            args=(args,),
             nprocs=args.distributed_world_size,
         )
     else:
@@ -446,12 +450,13 @@ def cli_main():
         main(args)
 
 
-import os
-import time
 def check_mem(cuda_device):
-    devices_info = os.popen('"/usr/bin/nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read().strip().split("\n")
+    devices_info = os.popen(
+        '"/usr/bin/nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read().strip().split(
+        "\n")
     total, used = devices_info[int(cuda_device)].split(',')
-    return total,used
+    return total, used
+
 
 def occumpy_mem(cuda_device):
     print(cuda_device)
@@ -460,10 +465,9 @@ def occumpy_mem(cuda_device):
     used = int(used)
     max_mem = int(total * 0.9)
     block_mem = max_mem - used
-    x = torch.cuda.FloatTensor(256,1024,block_mem)
+    x = torch.cuda.FloatTensor(256, 1024, block_mem)
     del x
 
-import tqdm
 
 if __name__ == '__main__':
     cli_main()
