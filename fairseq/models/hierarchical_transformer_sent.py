@@ -16,7 +16,7 @@ from fairseq.models import (
     FairseqEncoder,
     FairseqIncrementalDecoder,
     FairseqModel,
-BaseFairseqModel,
+    BaseFairseqModel,
     register_model,
     register_model_architecture,
 )
@@ -64,7 +64,6 @@ class HierarchicalTransformerModel(BaseFairseqModel):
     def max_positions(self):
         """Maximum length supported by the model."""
         return (self.encoder.max_positions(), 20000)
-
 
     @staticmethod
     def add_args(parser):
@@ -192,7 +191,7 @@ class HierarchicalTransformerModel(BaseFairseqModel):
                     args.decoder_embed_path != args.encoder_embed_path):
                 raise ValueError('--share-all-embeddings not compatible with --decoder-embed-path')
             encoder_embed_tokens = build_embedding(
-                src_dict, args.encoder_embed_dim, args.encoder_embed_path
+                src_dict, args.encoder_embed_dim, args.encoder_embed_path  # 512, None
             )
             decoder_embed_tokens = encoder_embed_tokens
             args.share_decoder_input_output_embed = True
@@ -707,7 +706,7 @@ class TransformerLayer(nn.Module):
             return layer_norm(x)
         else:
             return x
-        
+
 
 class HierarchicalTransformer_with_sentenceDecoder(nn.Module):
     def __init__(self, args):
